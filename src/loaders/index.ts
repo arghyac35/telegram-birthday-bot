@@ -8,7 +8,16 @@ export default async ({ expressApp }) => {
   await mongooseLoader();
   Logger.info('✌️ DB loaded and connected!');
 
-  await dependencyInjectorLoader();
+  const birthdayModel = {
+    name: 'birthdayModel',
+    model: require('../models/birthday').default,
+  };
+
+  await dependencyInjectorLoader({
+    models: [
+      birthdayModel
+    ],
+  });
   Logger.info('✌️ Dependency Injector loaded');
 
   await expressLoader({ app: expressApp });
