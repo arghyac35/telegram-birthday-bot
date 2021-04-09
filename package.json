@@ -1,0 +1,71 @@
+{
+  "name": "telegram-birthday-bot",
+  "version": "1.0.0",
+  "description": "Store bdays and wish them at that day",
+  "main": "src/app.ts",
+  "scripts": {
+    "build": "npm-run-all clean tsc downloadCreds",
+    "clean": "rimraf build/*",
+    "heroku-postbuild": "npm run build",
+    "start": "nodemon",
+    "inspect": "nodemon --inspect src/app.ts",
+    "tsc": "tsc",
+    "lint": "npm run lint:js ",
+    "lint:eslint": "eslint --ignore-path .gitignore --ext .ts",
+    "lint:js": "npm run lint:eslint src/",
+    "lint:fix": "npm run lint:js -- --fix"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/arghyac35/telegram-birthday-bot.git"
+  },
+  "keywords": [
+    "js",
+    "javascript",
+    "typescript",
+    "node",
+    "express"
+  ],
+  "author": "Arghya Chanda",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^0.21.1",
+    "body-parser": "^1.19.0",
+    "cors": "^2.8.5",
+    "dotenv": "^8.2.0",
+    "errorhandler": "^1.5.1",
+    "express": "^4.17.1",
+    "lodash": "^4.17.21",
+    "method-override": "^3.0.0",
+    "morgan": "^1.10.0",
+    "reflect-metadata": "^0.1.13",
+    "telegraf": "^4.1.1",
+    "typedi": "^0.10.0",
+    "winston": "^3.3.3",
+    "winston-daily-rotate-file": "^4.5.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.11",
+    "@types/lodash": "^4.14.168",
+    "@types/node": "^14.14.31",
+    "@typescript-eslint/eslint-plugin": "^4.15.2",
+    "@typescript-eslint/parser": "^4.15.2",
+    "eslint": "^7.21.0",
+    "eslint-config-prettier": "^8.1.0",
+    "eslint-plugin-prettier": "^3.3.1",
+    "nodemon": "^2.0.7",
+    "npm-run-all": "^4.1.5",
+    "prettier": "^2.2.1",
+    "rimraf": "^3.0.2",
+    "ts-node": "^9.1.1",
+    "tslint": "^6.1.3",
+    "typescript": "^4.2.2"
+  },
+  "bugs": {
+    "url": "https://github.com/arghyac35/telegram-birthday-bot/issues"
+  },
+  "homepage": "https://github.com/arghyac35/telegram-birthday-bot#readme",
+  "engines": {
+    "node": "15.x"
+  }
+}
