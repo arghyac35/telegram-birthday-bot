@@ -1,15 +1,19 @@
 import { Container } from "typedi";
 import { Telegraf, Context } from 'telegraf'
+import { Logger } from 'winston';
 import config from "../config";
+import BirthdayService from "./birthday";
 
 const SUDO_USERS = config.sudoUsers ? config.sudoUsers.split(',').map(userId => Number(userId)) : [];
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export default () => {
   const bot = Container.get('tgBot') as Telegraf<Context>;
+  const birthdayServiceInstance = Container.get(BirthdayService);
+  const logger: Logger = Container.get('logger');
 
   bot.start((ctx) => {
-    sendMessage(ctx, ctx.message, 'Hi, there how are you?.', -1).catch(console.log);
+    sendMessage(ctx, ctx.message, 'Hi, there how are you?.', -1).catch(logger.error);
   });
 
   bot.hears(/^[/|.](help|h)$/i, async (ctx) => {
@@ -17,8 +21,19 @@ export default () => {
       <b>Command ｜ Description</b>
       Comming soon...
       `;
-    sendMessage(ctx, ctx.message, text, 60000).catch(console.log);
-  })
+    sendMessage(ctx, ctx.message, text, 60000).catch(logger.error);
+  });
+
+  bot.hears(/^[/|.](myBirthday|mb) (.+)/i, async (ctx) => {
+
+    let res: any;
+    try {
+      res = await birthdayServiceInstance.addBirthday(ctx.match[2], ctx.message.from.id, ctx.message.chat.id);
+      await sendMessage(ctx, ctx.message, res, -1);
+    } catch (error) {
+      sendMessage(ctx, ctx.message, error.message, -1).catch(logger.error);
+    }
+  });
 }
 
 
