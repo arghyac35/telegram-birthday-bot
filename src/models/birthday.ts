@@ -11,7 +11,11 @@ const birthday = new Schema(
     tgUserId: {
       type: Number,
       require: true
-    }
+    },
+    tgChatId: {
+      type: Number,
+      require: true
+    },
   },
   { timestamps: true },
 );
