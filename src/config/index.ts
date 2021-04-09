@@ -29,7 +29,7 @@ export default {
   api: {
     prefix: '/api',
   },
-
+  databaseURL: process.env.MONGODB_URI,
   tgBotToken: process.env.BOT_TOKEN,
   domain: process.env.DOMAIN,
   sudoUsers: process.env.SUDO_USERS,
