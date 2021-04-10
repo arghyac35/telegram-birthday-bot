@@ -30,7 +30,7 @@ export default (app: Router) => {
     logger.debug('Calling getTodaysClass endpoint')
     try {
       const birthdayServiceInstance = Container.get(BirthdayService);
-      await birthdayServiceInstance.getTodaysList();
+      await birthdayServiceInstance.sendTodaysBdayMessage();
       res.sendStatus(200);
     } catch (e) {
       logger.error('🔥 error: %o', e);
