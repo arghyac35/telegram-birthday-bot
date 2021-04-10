@@ -1,6 +1,8 @@
 import { Service, Inject } from 'typedi';
 import { Telegraf } from 'telegraf'
 import moment from 'moment';
+import { IBirthday } from '../interfaces/IBirthday';
+import _ from 'lodash';
 
 @Service()
 export default class BirthdayService {
@@ -21,9 +23,9 @@ export default class BirthdayService {
     let returnMessage = '';
 
     if (arrSize === 2) {
-      momentInputDate = moment(inputDate, 'DD-MM');
+      momentInputDate = moment.utc(inputDate, 'DD-MM');
     } else if (arrSize === 3) {
-      momentInputDate = moment(inputDate, 'DD-MM-YYYY');
+      momentInputDate = moment.utc(inputDate, 'DD-MM-YYYY');
     } else {
       throw new Error('Invalid date.')
     }
@@ -32,8 +34,7 @@ export default class BirthdayService {
     if (momentInputDate.isValid()) {
       this.logger.debug('Date is valid, procedding with db operation.');
 
-      // await this.birthdayModel.updateOne({ tgUserId }, { $set: { birthDate: momentInputDate.toDate() } }, { upsert: true });
-      const recordExists = await this.birthdayModel.findOne({ tgUserId });
+      const recordExists = await this.birthdayModel.findOne({ tgUserId, tgChatId });
       if (recordExists) {
         recordExists.birthDate = momentInputDate.toDate();
         await recordExists.save();
@@ -47,5 +48,135 @@ export default class BirthdayService {
     }
 
     return returnMessage;
+  }
+
+  public async listBirthdays(tgChatId: number): Promise<string> {
+    const list = await this.birthdayModel.find({ tgChatId }).sort({ birthDate: 1 });
+
+    // group the birthdays by month
+    let groupbyMonth = _.groupBy(list, (result) => moment(result.birthDate).month());
+
+    let message = '';
+
+    if (Object.keys(groupbyMonth).length > 0) {
+      for (const key in groupbyMonth) {
+        if (Object.prototype.hasOwnProperty.call(groupbyMonth, key)) {
+          const arrBirthdays = groupbyMonth[key];
+
+          // get the month by moment month number
+          message += `${moment().month(key).format("MMMM")}:\n`;
+
+          await this.asyncForEach(arrBirthdays, async (birthday) => {
+            const chatMember = await this.bot.telegram.getChatMember(birthday.tgChatId, birthday.tgUserId);
+            const memeberFirstName = chatMember.user.first_name;
+            message += `${moment(birthday.birthDate).format('Do')} - ${memeberFirstName}\n`;
+          });
+
+          message += '\n';
+        }
+      }
+    } else { message = 'No birthdays saved for this chat.' }
+
+    return message;
+  }
+
+  public async getTodaysList(tgChatId?: number | string): Promise<IBirthday[]> {
+    // Fetch todays birthday by date and month
+    const aggregate: any = [{
+      $match: {
+        $expr: {
+          $and: [
+            { $eq: [{ $dayOfMonth: '$birthDate' }, { $dayOfMonth: new Date() }] },
+            { $eq: [{ $month: '$birthDate' }, { $month: new Date() }] },
+          ],
+        },
+      }
+    }];
+
+    if (tgChatId) {
+      aggregate.push({
+        $match: { tgChatId }
+      });
+    }
+
+    return await this.birthdayModel.aggregate(aggregate);
+  }
+
+  public async getCurrentBdayByChat(tgChatId: number | string): Promise<string> {
+    const birthdays = await this.getTodaysList(tgChatId);
+    let message = '';
+    if (birthdays.length > 0) {
+      message = 'Today\'s birthday list:\n'
+      await this.asyncForEach(birthdays, async birthday => {
+        const chatMember = await this.bot.telegram.getChatMember(tgChatId, birthday.tgUserId);
+        message += `${chatMember.user.first_name} ${chatMember.user.last_name}\n`;
+      });
+    } else message = 'No one have birthday today.';
+
+    return message;
+  }
+
+  public async sendTodaysBdayMessage(): Promise<void> {
+    // Fetch todays birthday by date and month
+    const data = await this.getTodaysList();
+
+    // Seperate the unique chatIds and send a single bday message to those chats
+    const uniqueChatids = [...new Set(data.map(item => item.tgChatId))];
+
+    await this.asyncForEach(uniqueChatids, async (chatId) => {
+
+      const chatSpecificBirthdays = data.filter(birthday => birthday.tgChatId === chatId);
+
+      if (chatSpecificBirthdays.length > 0) {
+        let message = 'Wish you a very happy birthday ';
+
+        // Construct the birthday message for each user
+        await this.asyncForEach(chatSpecificBirthdays, async (birthday) => {
+          const chatMember = await this.bot.telegram.getChatMember(chatId, birthday.tgUserId);
+          const memberUsername = chatMember.user.username;
+          const memberName = chatMember.user.first_name + ' ' + chatMember.user.last_name;
+
+          if (memberUsername) {
+            message += `@${memberUsername}`;
+          } else if (memberName) {
+            message += `${memberName}`;
+          } else {
+            message += `${birthday.tgUserId}`;
+          }
+          message += ', ';
+        })
+        // Remove the last comma and space
+        message = message.slice(0, -2);
+
+        this.bot.telegram.sendMessage(chatId, message, {
+          parse_mode: 'HTML',
+        }).then((ctx) => {
+          this.logger.info('Message sent to chat: %s', ctx.chat.id);
+        }
+        ).catch(error => {
+          this.logger.error(`Error sending message to chat: ${chatId} %o`, error);
+        });
+      }
+    });
+  }
+
+  public async deleteBirthday(tgChatId: number, tgUserId: any): Promise<string> {
+    tgUserId = tgUserId.trim();
+    const del = await this.birthdayModel.deleteOne({ tgChatId, tgUserId });
+    let message = ''
+    if (del.ok) {
+      const chatMember = await this.bot.telegram.getChatMember(tgChatId, tgUserId);
+      message = `Birthday for user: ${chatMember.user.first_name} removed`;
+    } else {
+      message = 'Cannot delete, birthday for the specified user is not saved.'
+    }
+
+    return message;
+  }
+
+  async asyncForEach(array: any[], callback: (value: any, index: number, array: any[]) => any) {
+    for (let index = 0; index < array.length; index++) {
+      await callback(array[index], index, array);
+    }
   }
 }

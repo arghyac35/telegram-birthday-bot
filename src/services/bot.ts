@@ -13,19 +13,27 @@ export default () => {
   const logger: Logger = Container.get('logger');
 
   bot.start((ctx) => {
+    if (ctx.chat.type === 'private') {
+      sendMessage(ctx, ctx.message, 'I am not made to be used in private chats.', -1).catch(logger.error);
+      return;
+    }
     sendMessage(ctx, ctx.message, 'Hi, there how are you?.', -1).catch(logger.error);
   });
 
-  bot.hears(/^[/|.](help|h)$/i, async (ctx) => {
-    const text = `
-      <b>Command ｜ Description</b>
-      Comming soon...
-      `;
-    sendMessage(ctx, ctx.message, text, 60000).catch(logger.error);
+  bot.help(async (ctx) => {
+    if (ctx.chat.type === 'private') {
+      sendMessage(ctx, ctx.message, 'I am not made to be used in private chats.', -1).catch(logger.error);
+      return;
+    }
+    const text = `<b>Command ｜ Description</b>\n<code>/myBirthday </code>DD-MM-YYYY, you can also give it without year as DD-MM\n<code>/listBirthdays</code> - shows all the saved birthdays group by month\n<code>/currentBirthday</code> - Shows today's birthday\n<code>/deleteBirthday </code>userid - Delete birthday for an user using tg user id not username, this is only for admins.`;
+    sendMessage(ctx, ctx.message, text, -1).catch(logger.error);
   });
 
   bot.hears(/^[/|.](myBirthday|mb) (.+)/i, async (ctx) => {
-
+    if (ctx.chat.type === 'private') {
+      sendMessage(ctx, ctx.message, 'I am not made to be used in private chats.', -1).catch(logger.error);
+      return;
+    }
     let res: any;
     try {
       res = await birthdayServiceInstance.addBirthday(ctx.match[2], ctx.message.from.id, ctx.message.chat.id);
@@ -34,14 +42,55 @@ export default () => {
       sendMessage(ctx, ctx.message, error.message, -1).catch(logger.error);
     }
   });
-}
 
+  bot.hears(/^[/|.](listBirthdays|lb)$/i, async (ctx) => {
+    if (ctx.chat.type === 'private') {
+      sendMessage(ctx, ctx.message, 'I am not made to be used in private chats.', -1).catch(logger.error);
+      return;
+    }
+    let res = '';
+    try {
+      res = await birthdayServiceInstance.listBirthdays(ctx.message.chat.id);
+      await sendMessage(ctx, ctx.message, res, -1);
+    } catch (error) {
+      sendMessage(ctx, ctx.message, error.message, -1).catch(logger.error);
+    }
+  });
 
-function isSudoUser(msg: any): number {
-  if (SUDO_USERS.some(d => d === msg.from.id)) {
-    return 0;
-  }
-  return -1;
+  bot.hears(/^[/|.](currentBirthday|cb)$/i, async (ctx) => {
+    if (ctx.chat.type === 'private') {
+      sendMessage(ctx, ctx.message, 'I am not made to be used in private chats.', -1).catch(logger.error);
+      return;
+    }
+    let res = '';
+    try {
+      res = await birthdayServiceInstance.getCurrentBdayByChat(ctx.message.chat.id);
+      await sendMessage(ctx, ctx.message, res, -1);
+    } catch (error) {
+      sendMessage(ctx, ctx.message, error.message, -1).catch(logger.error);
+    }
+  });
+
+  bot.hears(/^[/|.](deleteBirthday|db) (.+)/i, async (ctx) => {
+    if (ctx.chat.type === 'private') {
+      sendMessage(ctx, ctx.message, 'I am not made to be used in private chats.', -1).catch(logger.error);
+      return;
+    }
+    let res = '';
+    try {
+      const chatAdmins = await ctx.getChatAdministrators();
+
+      const isAdmin = chatAdmins.some(admin => admin.user.id === ctx.message.from.id);
+      if (isAdmin) {
+        res = await birthdayServiceInstance.deleteBirthday(ctx.message.chat.id, ctx.match[2]);
+      } else {
+        res = 'This command can only be executed by admin.'
+      }
+      await sendMessage(ctx, ctx.message, res, -1);
+    } catch (error) {
+      sendMessage(ctx, ctx.message, error.message, -1).catch(logger.error);
+    }
+  });
 }
 
 async function sendMessage(bot: Context, msg, text: string, delay?: number, quickDeleteOriginal?: boolean) {
