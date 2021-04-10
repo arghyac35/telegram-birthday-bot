@@ -4,7 +4,7 @@
   "description": "Store bdays and wish them at that day",
   "main": "src/app.ts",
   "scripts": {
-    "build": "npm-run-all clean tsc downloadCreds",
+    "build": "npm-run-all clean tsc",
     "clean": "rimraf build/*",
     "heroku-postbuild": "npm run build",
     "start": "nodemon",
