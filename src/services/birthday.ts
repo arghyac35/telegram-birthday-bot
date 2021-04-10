@@ -81,13 +81,15 @@ export default class BirthdayService {
   }
 
   public async getTodaysList(tgChatId?: number | string): Promise<IBirthday[]> {
+    const currentDate = new Date();
+    this.logger.silly('Current date--> %s', currentDate);
     // Fetch todays birthday by date and month
     const aggregate: any = [{
       $match: {
         $expr: {
           $and: [
-            { $eq: [{ $dayOfMonth: '$birthDate' }, { $dayOfMonth: new Date() }] },
-            { $eq: [{ $month: '$birthDate' }, { $month: new Date() }] },
+            { $eq: [{ $dayOfMonth: '$birthDate' }, { $dayOfMonth: currentDate }] },
+            { $eq: [{ $month: '$birthDate' }, { $month: currentDate }] },
           ],
         },
       }
@@ -119,6 +121,8 @@ export default class BirthdayService {
   public async sendTodaysBdayMessage(): Promise<void> {
     // Fetch todays birthday by date and month
     const data = await this.getTodaysList();
+
+    this.logger.silly('bday list--> %j', data);
 
     // Seperate the unique chatIds and send a single bday message to those chats
     const uniqueChatids = [...new Set(data.map(item => item.tgChatId))];
@@ -153,12 +157,14 @@ export default class BirthdayService {
         }).then((ctx) => {
           this.logger.info('Message sent to chat: %s', ctx.chat.id);
           this.bot.telegram.pinChatMessage(ctx.chat.id, ctx.message_id, { disable_notification: true }).catch(error => {
-            this.logger.error(`Error pinning message to chat: ${ctx.chat.id} %o`, error);
+            this.logger.error(`Error pinning message to chat: ${ctx.chat.id} %o`, error.message);
           });
         }
         ).catch(error => {
           this.logger.error(`Error sending message to chat: ${chatId} %o`, error);
         });
+      } else {
+        this.logger.info(`There are no birthdays for chat: ${chatId}`);
       }
     });
   }
