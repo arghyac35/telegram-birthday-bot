@@ -152,6 +152,9 @@ export default class BirthdayService {
           parse_mode: 'HTML',
         }).then((ctx) => {
           this.logger.info('Message sent to chat: %s', ctx.chat.id);
+          this.bot.telegram.pinChatMessage(ctx.chat.id, ctx.message_id, { disable_notification: true }).catch(error => {
+            this.logger.error(`Error pinning message to chat: ${ctx.chat.id} %o`, error);
+          });
         }
         ).catch(error => {
           this.logger.error(`Error sending message to chat: ${chatId} %o`, error);
