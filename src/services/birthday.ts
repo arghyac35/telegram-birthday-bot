@@ -88,8 +88,22 @@ export default class BirthdayService {
       $match: {
         $expr: {
           $and: [
-            { $eq: [{ $dayOfMonth: '$birthDate' }, { $dayOfMonth: currentDate }] },
-            { $eq: [{ $month: '$birthDate' }, { $month: currentDate }] },
+            {
+              $eq: [{ $dayOfMonth: '$birthDate' }, {
+                $dayOfMonth: {
+                  date: currentDate,
+                  timezone: "Asia/Kolkata"
+                }
+              }]
+            },
+            {
+              $eq: [{ $month: '$birthDate' }, {
+                $month: {
+                  date: currentDate,
+                  timezone: "Asia/Kolkata"
+                }
+              }]
+            },
           ],
         },
       }

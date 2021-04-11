@@ -27,7 +27,7 @@ export default (app: Router) => {
 
   route.get(`/getTodaysBirthday/${config.tgBotToken}`, async (req: Request, res: Response, next: NextFunction) => {
     const logger: Logger = Container.get('logger');
-    logger.debug('Calling getTodaysClass endpoint')
+    logger.debug('Calling getTodaysBirthday endpoint')
     try {
       const birthdayServiceInstance = Container.get(BirthdayService);
       await birthdayServiceInstance.sendTodaysBdayMessage();
