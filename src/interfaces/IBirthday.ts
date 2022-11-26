@@ -1,12 +1,14 @@
 export interface IBirthday {
-  _id: string,
-  birthDate: Date,
-  tgUserId: number,
-  tgChatId: number
+  _id: string;
+  birthDate: Date;
+  tgUserId: number;
+  tgChatId: number;
+  name?: string;
 }
 
 export interface IBirthdayInputDTO {
-  birthDate: Date,
-  tgUserId: number,
-  tgChatId: number
+  birthDate: Date;
+  tgUserId: number;
+  tgChatId: number;
+  name?: string;
 }

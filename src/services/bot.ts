@@ -15,28 +15,15 @@ export default class BotService {
   constructor() {
     this.birthdayServiceInstance = Container.get<BirthdayService>(BirthdayService);
     this.bot.start((ctx) => {
-      if (ctx.chat.type === 'private') {
-        this.sendMessage(ctx, ctx.message, 'I am not made to be used in private chats.', -1).catch(this.logger.error);
-        return;
-      }
       this.sendMessage(ctx, ctx.message, 'Hi, there how are you?.', -1).catch(this.logger.error);
     });
 
     this.bot.help(async (ctx) => {
-      if (ctx.chat.type === 'private') {
-        this.sendMessage(ctx, ctx.message, 'I am not made to be used in private chats.', -1).catch(this.logger.error);
-        return;
-      }
-      const text = `<b>Command ｜ Description</b>\n<code>/myBirthday </code>DD-MM-YYYY, you can also give it without year as DD-MM\n<code>/listBirthdays</code> - shows all the saved birthdays group by month\n<code>/currentBirthday</code> - Shows today's birthday\n<code>/deleteBirthday </code>userid - Delete birthday for an user using tg user id not username, this is only for admins.`;
+      const text = `<b>Command ｜ Description</b>\n<code>/myBirthday </code>DD-MM-YYYY, you can also give it without year as DD-MM\n<code>/listBirthdays</code> - shows all the saved birthdays group by month\n<code>/currentBirthday</code> - Shows today's birthday\n<code>/deleteBirthday </code>userid - Delete birthday for an user using tg user id not username, this is only for admins.\n<code>/setBirthday </code>DD-MM-YYYY name - Set the birthday for anyone using name. This is meant to be used in private chat mainly, where we can save our firends bday and get reminders.`;
       this.sendMessage(ctx, ctx.message, text, -1).catch(this.logger.error);
     });
 
     this.bot.on('text', async (ctx) => {
-      if (ctx.chat.type === 'private') {
-        this.sendMessage(ctx, ctx.message, 'I am not made to be used in private chats.', -1).catch(this.logger.error);
-        return;
-      }
-
       let text = ctx.message.text.trim();
       if (text === '@' + ctx.botInfo.username) {
         this.sendMessage(
@@ -75,6 +62,13 @@ export default class BotService {
           }
           this.myBirthday(ctx, param);
           break;
+        case 'sb':
+        case 'setbirthday':
+          if (arrtext.length < 2) {
+            return await this.sendMessage(ctx, ctx.message, 'Please provide valid parameters', 10000);
+          }
+          this.setBirthday(ctx, param, arrtext[2]);
+          break;
         case 'lb':
         case 'listbirthdays':
           this.listBirthdays(ctx);
@@ -86,7 +80,7 @@ export default class BotService {
         case 'db':
         case 'deletebirthday':
           if (!param) {
-            return await this.sendMessage(ctx, ctx.message, 'Not a valid command for this bot', 10000);
+            return await this.sendMessage(ctx, ctx.message, 'Please provide userid of tg..', 10000);
           }
           this.deleteBirthday(ctx, param);
           break;
@@ -102,7 +96,7 @@ export default class BotService {
   private async myBirthday(ctx: Context, param: string) {
     let res: any;
     try {
-      res = await this.birthdayServiceInstance.addBirthday(param, ctx.message.from.id, ctx.message.chat.id);
+      res = await this.birthdayServiceInstance.addBirthday(param, ctx.message.chat.id, ctx.message.from.id);
       await this.sendMessage(ctx, ctx.message, res, -1);
     } catch (error) {
       this.logger.error('error: myBirthday: %o', error);
@@ -110,10 +104,21 @@ export default class BotService {
     }
   }
 
+  private async setBirthday(ctx: Context, birthday: string, name: string) {
+    let res: any;
+    try {
+      res = await this.birthdayServiceInstance.addBirthday(birthday, ctx.message.chat.id, null, name);
+      await this.sendMessage(ctx, ctx.message, res, -1);
+    } catch (error) {
+      this.logger.error('error: setBirthday: %o', error);
+      this.sendMessage(ctx, ctx.message, error.message, -1).catch(this.logger.error);
+    }
+  }
+
   private async listBirthdays(ctx: Context) {
     let res = '';
     try {
-      res = await this.birthdayServiceInstance.listBirthdays(ctx.message.chat.id);
+      res = await this.birthdayServiceInstance.listBirthdays(ctx.message.chat.id, ctx.chat.type === 'private');
       await this.sendMessage(ctx, ctx.message, res, -1);
     } catch (error) {
       this.logger.error('error: listBirthdays: %o', error);
@@ -135,13 +140,17 @@ export default class BotService {
   private async deleteBirthday(ctx: Context, param: string) {
     let res = '';
     try {
-      const chatAdmins = await ctx.getChatAdministrators();
-
-      const isAdmin = chatAdmins.some((admin) => admin.user.id === ctx.message.from.id);
-      if (isAdmin) {
+      if (ctx.chat.type === 'private') {
         res = await this.birthdayServiceInstance.deleteBirthday(ctx.message.chat.id, param);
       } else {
-        res = 'This command can only be executed by admin.';
+        const chatAdmins = await ctx.getChatAdministrators();
+
+        const isAdmin = chatAdmins.some((admin) => admin.user.id === ctx.message.from.id);
+        if (isAdmin) {
+          res = await this.birthdayServiceInstance.deleteBirthday(ctx.message.chat.id, param);
+        } else {
+          res = 'This command can only be executed by admin.';
+        }
       }
       await this.sendMessage(ctx, ctx.message, res, -1);
     } catch (error) {

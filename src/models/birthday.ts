@@ -6,16 +6,16 @@ const birthday = new Schema(
   {
     birthDate: {
       type: Date,
-      require: true
+      require: true,
     },
     tgUserId: {
       type: Number,
-      require: true
     },
     tgChatId: {
       type: Number,
-      require: true
+      require: true,
     },
+    name: String,
   },
   { timestamps: true },
 );
