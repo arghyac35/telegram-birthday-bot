@@ -67,7 +67,7 @@ export default class BotService {
           if (arrtext.length < 2) {
             return await this.sendMessage(ctx, ctx.message, 'Please provide valid parameters', 10000);
           }
-          this.setBirthday(ctx, param, arrtext[2]);
+          this.setBirthday(ctx, param, arrtext.slice(2).join(' '));
           break;
         case 'lb':
         case 'listbirthdays':
@@ -82,7 +82,7 @@ export default class BotService {
           if (!param) {
             return await this.sendMessage(ctx, ctx.message, 'Please provide userid of tg..', 10000);
           }
-          this.deleteBirthday(ctx, param);
+          this.deleteBirthday(ctx, arrtext.slice(1).join(' '));
           break;
         default:
           if (isCommandForCurrentBot) {

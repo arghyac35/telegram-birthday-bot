@@ -245,12 +245,20 @@ export default class BirthdayService {
       value = value.trim();
     }
 
-    let isTgUserId = true;
-    let findQuery: any = { tgChatId, tgUserId: value };
-    if (this.checkValidObjectId(value)) {
-      isTgUserId = false;
+    let isTgUserId = false;
+    let findQuery: any = { tgChatId };
+
+    // As tguserid is always a number, so if value is number then consider it as userid
+    if (!isNaN(value)) {
+      isTgUserId = true;
+      findQuery['tgUserId'] = value;
+    } else if (this.checkValidObjectId(value)) {
       findQuery = { _id: Types.ObjectId(value) };
+    } else {
+      findQuery['name'] = { $regex: '^' + value + '$', $options: 'i' };
     }
+
+    this.logger.silly('findQuery: %o', findQuery);
 
     const record = await this.birthdayModel.findOne(findQuery);
     if (!record) {
