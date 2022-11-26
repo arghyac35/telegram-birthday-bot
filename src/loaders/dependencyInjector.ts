@@ -1,16 +1,16 @@
+import { Telegraf } from 'telegraf';
 import { Container } from 'typedi';
-import LoggerInstance from './logger';
 import config from '../config';
-import { Telegraf } from 'telegraf'
-import bothandler from '../services/bot'
+import bothandler from '../services/bot';
+import LoggerInstance from './logger';
 
 export default async ({ models }: { models: { name: string; model: any }[] }): Promise<any> => {
   try {
     if (config.tgBotToken === undefined) {
-      throw new Error('BOT_TOKEN must be provided!')
+      throw new Error('BOT_TOKEN must be provided!');
     }
 
-    models.forEach(m => {
+    models.forEach((m) => {
       Container.set(m.name, m.model);
     });
 
@@ -18,8 +18,7 @@ export default async ({ models }: { models: { name: string; model: any }[] }): P
     Container.set('tgBot', bot);
     Container.set('logger', LoggerInstance);
 
-    bothandler();
-
+    new bothandler();
   } catch (e) {
     LoggerInstance.error('🔥 Error on dependency injector loader: %o', e);
     throw e;

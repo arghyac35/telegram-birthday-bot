@@ -1,129 +1,190 @@
-import { Container } from "typedi";
-import { Telegraf, Context } from 'telegraf'
+import { Container, Inject } from 'typedi';
+import { Telegraf, Context } from 'telegraf';
 import { Logger } from 'winston';
-import config from "../config";
-import BirthdayService from "./birthday";
+import config from '../config';
+import BirthdayService from './birthday';
 
-const SUDO_USERS = config.sudoUsers ? config.sudoUsers.split(',').map(userId => Number(userId)) : [];
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const SUDO_USERS = config.sudoUsers ? config.sudoUsers.split(',').map((userId) => Number(userId)) : [];
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-export default () => {
-  const bot = Container.get('tgBot') as Telegraf<Context>;
-  const birthdayServiceInstance = Container.get(BirthdayService);
-  const logger: Logger = Container.get('logger');
+export default class BotService {
+  private birthdayServiceInstance: BirthdayService;
+  private logger = Container.get<Logger>('logger');
+  private bot = Container.get<Telegraf<Context>>('tgBot');
 
-  bot.start((ctx) => {
-    if (ctx.chat.type === 'private') {
-      sendMessage(ctx, ctx.message, 'I am not made to be used in private chats.', -1).catch(logger.error);
-      return;
-    }
-    sendMessage(ctx, ctx.message, 'Hi, there how are you?.', -1).catch(logger.error);
-  });
+  constructor() {
+    this.birthdayServiceInstance = Container.get<BirthdayService>(BirthdayService);
+    this.bot.start((ctx) => {
+      if (ctx.chat.type === 'private') {
+        this.sendMessage(ctx, ctx.message, 'I am not made to be used in private chats.', -1).catch(this.logger.error);
+        return;
+      }
+      this.sendMessage(ctx, ctx.message, 'Hi, there how are you?.', -1).catch(this.logger.error);
+    });
 
-  bot.help(async (ctx) => {
-    if (ctx.chat.type === 'private') {
-      sendMessage(ctx, ctx.message, 'I am not made to be used in private chats.', -1).catch(logger.error);
-      return;
-    }
-    const text = `<b>Command ｜ Description</b>\n<code>/myBirthday </code>DD-MM-YYYY, you can also give it without year as DD-MM\n<code>/listBirthdays</code> - shows all the saved birthdays group by month\n<code>/currentBirthday</code> - Shows today's birthday\n<code>/deleteBirthday </code>userid - Delete birthday for an user using tg user id not username, this is only for admins.`;
-    sendMessage(ctx, ctx.message, text, -1).catch(logger.error);
-  });
+    this.bot.help(async (ctx) => {
+      if (ctx.chat.type === 'private') {
+        this.sendMessage(ctx, ctx.message, 'I am not made to be used in private chats.', -1).catch(this.logger.error);
+        return;
+      }
+      const text = `<b>Command ｜ Description</b>\n<code>/myBirthday </code>DD-MM-YYYY, you can also give it without year as DD-MM\n<code>/listBirthdays</code> - shows all the saved birthdays group by month\n<code>/currentBirthday</code> - Shows today's birthday\n<code>/deleteBirthday </code>userid - Delete birthday for an user using tg user id not username, this is only for admins.`;
+      this.sendMessage(ctx, ctx.message, text, -1).catch(this.logger.error);
+    });
 
-  bot.hears(/^[/|.](myBirthday|mb) (.+)/i, async (ctx) => {
-    if (ctx.chat.type === 'private') {
-      sendMessage(ctx, ctx.message, 'I am not made to be used in private chats.', -1).catch(logger.error);
-      return;
-    }
+    this.bot.on('text', async (ctx) => {
+      if (ctx.chat.type === 'private') {
+        this.sendMessage(ctx, ctx.message, 'I am not made to be used in private chats.', -1).catch(this.logger.error);
+        return;
+      }
+
+      let text = ctx.message.text.trim();
+      if (text === '@' + ctx.botInfo.username) {
+        this.sendMessage(
+          ctx,
+          ctx.message,
+          'Hello, How are you today? Please use /help command to learn more about me.',
+          -1,
+        ).catch(this.logger.error);
+        return;
+      } else if (!text.startsWith('.') && !text.startsWith('/')) {
+        return;
+      }
+      // Check if commands consists this bots username
+      let arrtext = text.split('@');
+      let isCommandForCurrentBot = false;
+      if (arrtext.length > 1) {
+        const username = arrtext[1].split(' ')[0];
+        if (username === ctx.botInfo.username) {
+          // Remove the username so that it behvaes as normal command
+          text = text.replace('@' + ctx.botInfo.username, '');
+          isCommandForCurrentBot = true;
+        } else {
+          // Donot do anything when the command consists username of someother bot
+          return;
+        }
+      }
+
+      arrtext = text.split(' ');
+      const command = arrtext[0].toLowerCase().slice(1);
+      const param = arrtext[1];
+      switch (command) {
+        case 'mb':
+        case 'mybirthday':
+          if (!param) {
+            return await this.sendMessage(ctx, ctx.message, 'Please provide your birthday...', 10000);
+          }
+          this.myBirthday(ctx, param);
+          break;
+        case 'lb':
+        case 'listbirthdays':
+          this.listBirthdays(ctx);
+          break;
+        case 'cb':
+        case 'currentbirthday':
+          this.currentBirthday(ctx);
+          break;
+        case 'db':
+        case 'deletebirthday':
+          if (!param) {
+            return await this.sendMessage(ctx, ctx.message, 'Not a valid command for this bot', 10000);
+          }
+          this.deleteBirthday(ctx, param);
+          break;
+        default:
+          if (isCommandForCurrentBot) {
+            await this.sendMessage(ctx, ctx.message, 'Not a valid command for this bot', 10000);
+          }
+          break;
+      }
+    });
+  }
+
+  private async myBirthday(ctx: Context, param: string) {
     let res: any;
     try {
-      res = await birthdayServiceInstance.addBirthday(ctx.match[2], ctx.message.from.id, ctx.message.chat.id);
-      await sendMessage(ctx, ctx.message, res, -1);
+      res = await this.birthdayServiceInstance.addBirthday(param, ctx.message.from.id, ctx.message.chat.id);
+      await this.sendMessage(ctx, ctx.message, res, -1);
     } catch (error) {
-      sendMessage(ctx, ctx.message, error.message, -1).catch(logger.error);
+      this.logger.error('error: myBirthday: %o', error);
+      this.sendMessage(ctx, ctx.message, error.message, -1).catch(this.logger.error);
     }
-  });
+  }
 
-  bot.hears(/^[/|.](listBirthdays|lb)$/i, async (ctx) => {
-    if (ctx.chat.type === 'private') {
-      sendMessage(ctx, ctx.message, 'I am not made to be used in private chats.', -1).catch(logger.error);
-      return;
-    }
+  private async listBirthdays(ctx: Context) {
     let res = '';
     try {
-      res = await birthdayServiceInstance.listBirthdays(ctx.message.chat.id);
-      await sendMessage(ctx, ctx.message, res, -1);
+      res = await this.birthdayServiceInstance.listBirthdays(ctx.message.chat.id);
+      await this.sendMessage(ctx, ctx.message, res, -1);
     } catch (error) {
-      sendMessage(ctx, ctx.message, error.message, -1).catch(logger.error);
+      this.logger.error('error: listBirthdays: %o', error);
+      this.sendMessage(ctx, ctx.message, error.message, -1).catch(this.logger.error);
     }
-  });
+  }
 
-  bot.hears(/^[/|.](currentBirthday|cb)$/i, async (ctx) => {
-    if (ctx.chat.type === 'private') {
-      sendMessage(ctx, ctx.message, 'I am not made to be used in private chats.', -1).catch(logger.error);
-      return;
-    }
+  private async currentBirthday(ctx: Context) {
     let res = '';
     try {
-      res = await birthdayServiceInstance.getCurrentBdayByChat(ctx.message.chat.id);
-      await sendMessage(ctx, ctx.message, res, -1);
+      res = await this.birthdayServiceInstance.getCurrentBdayByChat(ctx.message.chat.id);
+      await this.sendMessage(ctx, ctx.message, res, -1);
     } catch (error) {
-      sendMessage(ctx, ctx.message, error.message, -1).catch(logger.error);
+      this.logger.error('error: currentBirthday: %o', error);
+      this.sendMessage(ctx, ctx.message, error.message, -1).catch(this.logger.error);
     }
-  });
+  }
 
-  bot.hears(/^[/|.](deleteBirthday|db) (.+)/i, async (ctx) => {
-    if (ctx.chat.type === 'private') {
-      sendMessage(ctx, ctx.message, 'I am not made to be used in private chats.', -1).catch(logger.error);
-      return;
-    }
+  private async deleteBirthday(ctx: Context, param: string) {
     let res = '';
     try {
       const chatAdmins = await ctx.getChatAdministrators();
 
-      const isAdmin = chatAdmins.some(admin => admin.user.id === ctx.message.from.id);
+      const isAdmin = chatAdmins.some((admin) => admin.user.id === ctx.message.from.id);
       if (isAdmin) {
-        res = await birthdayServiceInstance.deleteBirthday(ctx.message.chat.id, ctx.match[2]);
+        res = await this.birthdayServiceInstance.deleteBirthday(ctx.message.chat.id, param);
       } else {
-        res = 'This command can only be executed by admin.'
+        res = 'This command can only be executed by admin.';
       }
-      await sendMessage(ctx, ctx.message, res, -1);
+      await this.sendMessage(ctx, ctx.message, res, -1);
     } catch (error) {
-      sendMessage(ctx, ctx.message, error.message, -1).catch(logger.error);
+      this.logger.error('error: deleteBirthday: %o', error);
+      this.sendMessage(ctx, ctx.message, error.message, -1).catch(this.logger.error);
     }
-  });
-}
+  }
 
-async function sendMessage(bot: Context, msg, text: string, delay?: number, quickDeleteOriginal?: boolean) {
-  if (!delay) delay = 10000;
-  return new Promise((resolve, reject) => {
-    bot.telegram.sendMessage(msg.chat.id, text, {
-      reply_to_message_id: msg.message_id,
-      parse_mode: 'HTML',
-      disable_web_page_preview: true
-    })
-      .then((res) => {
-        if (delay > -1) {
-          deleteMsg(bot, res, delay);
-          if (quickDeleteOriginal) {
-            deleteMsg(bot, msg);
-          } else {
-            deleteMsg(bot, msg, delay);
+  private async sendMessage(bot: Context, msg, text: string, delay?: number, quickDeleteOriginal?: boolean) {
+    if (!delay) delay = 10000;
+    return new Promise((resolve, reject) => {
+      this.bot.telegram
+        .sendMessage(msg.chat.id, text, {
+          reply_to_message_id: msg.message_id,
+          parse_mode: 'HTML',
+          disable_web_page_preview: true,
+        })
+        .then((res) => {
+          if (delay > -1) {
+            this.deleteMsg(bot, res, delay);
+            if (quickDeleteOriginal) {
+              this.deleteMsg(bot, msg);
+            } else {
+              this.deleteMsg(bot, msg, delay);
+            }
           }
-        }
-        resolve(res);
-      })
-      .catch((err) => {
-        console.error(`sendMessage error: ${err.message}`);
-        reject(err);
-      });
-  });
-}
-
-async function deleteMsg(bot: Context, msg, delay?: number): Promise<any> {
-  if (delay) await sleep(delay);
-
-  bot.telegram.deleteMessage(msg.chat.id, msg.message_id.toString())
-    .catch(err => {
-      console.log(`Failed to delete message. Does the bot have message delete permissions for this chat? ${err.message}`);
+          resolve(res);
+        })
+        .catch((err) => {
+          this.logger.error('error: sendMessage: %o', err);
+          reject(err);
+        });
     });
+  }
+
+  private async deleteMsg(bot: Context, msg, delay?: number): Promise<any> {
+    if (delay) await sleep(delay);
+
+    this.bot.telegram.deleteMessage(msg.chat.id, msg.message_id.toString()).catch((err) => {
+      this.logger.error(
+        'Failed to delete message. Does the bot have message delete permissions for this chat? %o',
+        err,
+      );
+    });
+  }
 }
